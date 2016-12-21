@@ -16,7 +16,7 @@ import {IVector} from 'phovea_core/src/vector';
 import {toSelectOperation, defaultSelectionType} from 'phovea_core/src/idtype';
 
 
-export function defaultColor(value: any) {
+function defaultColor(value: any) {
   if (value.type === 'categorical') {
     return value.categories.map((c) => c.color);
   }
@@ -27,7 +27,7 @@ export function defaultColor(value: any) {
   }
   return ['white', 'red'];
 }
-export function defaultDomain(value) {
+function defaultDomain(value) {
   if (value.type === 'categorical') {
     return value.categories.map((c) => c.name);
   }
@@ -48,11 +48,17 @@ interface IScale {
   range(values: any[]): IScale;
 }
 
-export function toScale(value): IScale {
+function toScale(value): IScale {
   if (value.type === 'categorical') {
     return d3.scale.ordinal();
   }
   return d3.scale.linear();
+}
+
+export const forTests = {
+  defaultColor: defaultColor,
+  defaultDomain: defaultDomain,
+  toScale: toScale
 }
 
 interface IHeatMapRenderer {
