@@ -21,15 +21,21 @@ function defaultColor(value: any) {
     return value.categories.map((c) => c.color);
   }
   const r = value.range;
-  if (r[0] < 0 && r[1] > 0) {
-    //use a symmetric range
-    return ['blue', 'white', 'red'];
-  } else if (r[0] < 0 && r[1] <= 0) {
-    return ['blue', 'white']
+  if (r[0] < 0) {
+    if (r[1] <= 0) {
+      return ['blue', 'white'];
+    } else {
+      return ['blue', 'white', 'red'];
+    }
   } else {
-    return ['white', 'red']
+    if (r[1] >= 0) {
+      return ['white', 'red']
+    } else {
+      throw new RangeError()
+    }
   }
 }
+
 function defaultDomain(value) {
   if (value.type === 'categorical') {
     return value.categories.map((c) => c.name);
