@@ -54,14 +54,18 @@ describe('toScale', () => {
 });
 
 describe('HeatMapImageRenderer heatmapUrl', () => {
-  it('handles negative and positive', () => {
-    const render = new HeatMapImageRenderer();
+  const render = new HeatMapImageRenderer();
+  const parent = d3.select(document.createElement('div'));
+
+  beforeEach((done) => {
     const data = parseMatrix([[-1,0],[0,1]]);
-    const parent = d3.select(document.createElement('div'));
     const scale:[number, number] = [0, 1];
     const c = d3.scale.linear();
-    const onready = null;
+    const onready = done;
     render.build(data, parent, scale, c, onready);
+  });
+
+  it('handles negative and positive', () => {
     expect(render['image'].src).toEqual('http://localhost:9876/null');
     // TODO: port can change?
     // TODO: shouldn't the palette be in here?
