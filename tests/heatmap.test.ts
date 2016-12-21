@@ -58,13 +58,14 @@ describe('HeatMapImageRenderer heatmapUrl', () => {
     const render = new HeatMapImageRenderer();
     const data = parseMatrix([[-1,0],[0,1]]);
     const parent = d3.select(document.createElement('div'));
-    const scale = [0, 1];
+    const scale:[number, number] = [0, 1];
     const c = d3.scale.linear();
     const onready = null;
     render.build(data, parent, scale, c, onready);
-    expect(render.image.src).toEqual('http://localhost:9876/null');
+    expect(render['image'].src).toEqual('http://localhost:9876/null');
+    // TODO: port can change?
     // TODO: shouldn't the palette be in here?
-    expect(parent[0][0].innerHTML).toEqual('<div class="phovea-heatmap"><canvas width="0" height="1" class="phovea-heatmap-data"></canvas><canvas width="0" height="1" class="phovea-heatmap-selection"></canvas></div>');
+    expect(parent[0][0]['innerHTML']).toEqual('<div class="phovea-heatmap"><canvas width="0" height="1" class="phovea-heatmap-data"></canvas><canvas width="0" height="1" class="phovea-heatmap-selection"></canvas></div>');
     // TODO: shouldn't it be an img tag?
   });
 });
