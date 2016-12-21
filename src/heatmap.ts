@@ -68,7 +68,7 @@ export const forTests = {
   defaultColor: defaultColor,
   defaultDomain: defaultDomain,
   toScale: toScale
-}
+};
 
 interface IHeatMapRenderer {
   rescale($node: d3.Selection<any>, dim: number[], scale: number[]);
@@ -351,7 +351,7 @@ class HeatMapCanvasRenderer extends AHeatMapCanvasRenderer implements IHeatMapRe
 }
 
 
-class HeatMapImageRenderer extends AHeatMapCanvasRenderer implements IHeatMapRenderer {
+export class HeatMapImageRenderer extends AHeatMapCanvasRenderer implements IHeatMapRenderer {
   private image: HTMLImageElement;
   private ready = false;
   private color: IScale;
