@@ -443,6 +443,20 @@ class HeatMapImageRenderer extends AHeatMapCanvasRenderer implements IHeatMapRen
     var args: any = {
       range: <[number,number]>c.domain()
     };
+    function arrEqual(a: any[], b: any[]) {
+      if (a.length !== b.length) {
+        return false;
+      }
+      return a.every((ai,i) => ai === b[i]);
+    }
+    const colors = c.range();
+    if (arrEqual(colors, ['white', 'red'])) {
+      args.palette = 'white_red';
+    } else if (arrEqual(colors, ['blue', 'white', 'red'])) {
+      args.palette = 'blue_white_red';
+    } else if (arrEqual(colors, ['blue', 'white'])) {
+      args.palette = 'blue_white';
+    }
 
     this.image.src = data.heatmapUrl(all(), args);
 
