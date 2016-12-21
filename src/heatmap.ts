@@ -24,8 +24,11 @@ function defaultColor(value: any) {
   if (r[0] < 0 && r[1] > 0) {
     //use a symmetric range
     return ['blue', 'white', 'red'];
+  } else if (r[0] < 0 && r[1] <= 0) {
+    return ['blue', 'white']
+  } else {
+    return ['white', 'red']
   }
-  return ['white', 'red'];
 }
 function defaultDomain(value) {
   if (value.type === 'categorical') {
@@ -434,20 +437,7 @@ class HeatMapImageRenderer extends AHeatMapCanvasRenderer implements IHeatMapRen
     var args: any = {
       range: <[number,number]>c.domain()
     };
-    function arrEqual(a: any[], b: any[]) {
-      if (a.length !== b.length) {
-        return false;
-      }
-      return a.every((ai,i) => ai === b[i]);
-    }
-    const colors = c.range();
-    if (arrEqual(colors, ['black', 'white'])) {
-      //default scale
-    } else if (arrEqual(colors, ['white', 'red'])) {
-      args.palette = 'white_red';
-    } else if (arrEqual(colors, ['blue', 'white', 'red'])) {
-      args.palette = 'blue_white_red';
-    }
+
     this.image.src = data.heatmapUrl(all(), args);
 
     super.buildSelection(data, $root, scale);

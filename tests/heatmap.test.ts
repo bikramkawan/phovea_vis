@@ -46,7 +46,7 @@ describe('toScale', () => {
     const domain = forTests.defaultDomain(value);
     const range = forTests.defaultColor(value);
     const scale = forTests.toScale(value).domain(domain).range(range);
-    expect(scale(-1)).toEqual('#ffffff'); // TODO: Should be #0000ff?
-    expect(scale(0)).toEqual('#ff0000'); // TODO: Should be #ffffff?
+    expect(scale(-1)).toEqual('#0000ff');
+    expect(scale(0)).toEqual('#ffffff');
   });
 });
