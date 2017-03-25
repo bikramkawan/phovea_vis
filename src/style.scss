@@ -26,12 +26,21 @@ $hover-color: #ffc46b;
   rect {
     stroke: white;
     fill: black;
+    &.phovea-select-selected {
+      border: 1px solid $select-color;
+      fill: $select-color;
+    }
+  }
+  text {
+    user-select: none;
+    pointer-events: none;
   }
 }
 
 .phovea-box {
   path.axis {
     stroke: darkgrey;
+    stroke-width: 2px;
   }
 
   line.mean {
@@ -40,7 +49,7 @@ $hover-color: #ffc46b;
   }
 
   rect.box {
-    fill: steelblue;
+    fill: grey;
   }
 }
 
@@ -58,7 +67,6 @@ div.phovea-heatmap {
     }
   }
 }
-
 
 .phovea-scatterplot {
   circle {
@@ -106,7 +114,6 @@ div.phovea-heatmap {
   }
 }
 
-
 .phovea-heatmap {
   // highlight selection for svg heatmap
   rect {
@@ -117,6 +124,10 @@ div.phovea-heatmap {
       fill: $hover-color;
     }
   }
+  text {
+    user-select: none;
+    pointer-events: none;
+  }
 }
 
 .phovea-histogram {
@@ -125,5 +136,62 @@ div.phovea-heatmap {
   }
   .phovea-select-hovered rect {
     fill: $hover-color;
+  }
+  text {
+    user-select: none;
+    pointer-events: none;
+  }
+}
+
+.phovea-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+
+  > div {
+    white-space: nowrap;
+
+    &.small {
+      font-size: 50%;
+    }
+  }
+
+  &.phovea-proportional-symbol {
+    > div {
+      border-radius: 50%;
+      background-color: black;
+    }
+  }
+
+  &.phovea-barplot {
+    align-items: stretch;
+
+    > div {
+      flex: 1 1 auto;
+      background-color: black;
+    }
+  }
+}
+
+.phovea-mosaic{
+  text {
+    user-select: none;
+    pointer-events: none;
+  }
+  .phovea-select-selected rect {
+    fill: $select-color;
+  }
+}
+
+.phovea-mosaic {
+  text {
+    user-select: none;
+    pointer-events: none;
+  }
+  .phovea-select-selected rect {
+    fill: $select-color;
   }
 }

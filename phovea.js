@@ -61,6 +61,29 @@ module.exports = function(registry) {
     sizeDependsOnDataDimension: true
 
   });
+  registry.push('vis', 'list', function () {
+    return System.import('./src/list');
+  }, {
+    name: 'List',
+    filter: 'vector',
+    sizeDependsOnDataDimension: [
+      false,
+      true
+    ]
+  });
+  registry.push('vis', 'proportionalSymbol', function () {
+    return System.import('./src/list/proportionalSymbol');
+  }, {
+    name: 'Proportional Symbol',
+    filter: [
+      'vector',
+      '(real|int)'
+    ],
+    sizeDependsOnDataDimension: [
+      false,
+      true
+    ]
+  });
   registry.push('vis', 'scatterplot', function () {
     return System.import('./src/scatterplot');
   }, {
@@ -86,8 +109,7 @@ module.exports = function(registry) {
       false,
       true
     ],
-    scaling: 'height-only',
-    filter: 'vector'
+    filter: ['vector', '(real|int|categorical)']
 
   });
   registry.push('vis', 'phovea-vis-kaplanmeier', function () {
@@ -124,7 +146,6 @@ module.exports = function(registry) {
       false,
       true
     ],
-    scaling: 'height-only',
     filter: [
       '(vector|stratification)',
       'categorical'
@@ -149,7 +170,6 @@ module.exports = function(registry) {
   }, {
     name: 'BoxPlot',
     icon: function() { return System.import('./src/assets/box_icon.png'); },
-    scaling: 'aspect',
     filter: [
       'vector',
       '(real|int)'
