@@ -11,10 +11,9 @@ import {INumericalVector} from 'phovea_core/src/vector';
 import {toSelectOperation} from 'phovea_core/src/idtype';
 import {Range} from 'phovea_core/src/range';
 import {SelectOperation} from 'phovea_core/src/idtype/IIDType';
-import {fire} from 'phovea_core/src/event';
-import {List} from './list';
 import {EOrientation} from './heatmap/internal';
-
+import {selectionUtil} from 'phovea_d3/src/d3util';
+import {MouseSelectionHelper} from './selection/mouseselectionhelper';
 
 export interface IBarPlotOptions extends IVisInstanceOptions {
   /**
@@ -101,6 +100,8 @@ export class BarPlot extends AVisInstance implements IVisInstance {
       height: height * scale[1]
     }).style('transform', 'rotate(' + rotate + 'deg)');
     this.$node.select('g').attr('transform', 'scale(' + scale[0] + ',' + scale[1] + ')');
+    const color = (this.options.rowHeight * scale[1] < 10) ? '#aaa' : 'white';
+    this.$node.selectAll('rect').style('stroke', color);
     const act = {scale, rotate};
     this.fire('transform', act, bak);
     this.options.scale = scale;
@@ -123,9 +124,8 @@ export class BarPlot extends AVisInstance implements IVisInstance {
     //using range bands with an ordinal scale for uniform distribution
     const xscale = this.xscale = d3.scale.linear();
     const yscale = this.yscale = d3.scale.linear();
-    const onClick = function (d, i, selectOperation) {
-      data.select(0, [i], toSelectOperation(<MouseEvent>d3.event) || selectOperation);
-    };
+    const onClickAdd = selectionUtil(this.data, $g, 'rect', SelectOperation.ADD);
+    const onClickRemove = selectionUtil(this.data, $g, 'rect', SelectOperation.REMOVE);
 
     const l = function (event, type: string, selected: Range) {
       $g.selectAll('rect').classed('phovea-select-' + type, false);
@@ -153,58 +153,15 @@ export class BarPlot extends AVisInstance implements IVisInstance {
           o.max = minmax[1];
         }
       }
-      xscale.domain([o.min, o.max]);
+      xscale.domain([o.min, o.max]).clamp(true);
 
       const $m = $g.selectAll('rect').data(_data);
-      let start = null;
       const binSize = width / _data.length;
-      let topBottom = [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY];
-      $m.enter().append('rect')
-        .on('mousedown', (d, i) => {
-          if (start !== null) {
-            return;
-          }
-
-          topBottom = this.updateTopBotom(i, topBottom);
-
-          start = {d, i, applied: false};
-          if (toSelectOperation(<MouseEvent>d3.event) === SelectOperation.SET) {
-            fire(List.EVENT_BRUSH_CLEAR, this.data);
-            data.clear();
-          }
-        })
-        .on('mouseenter', (d, i) => {
-          if (start === null) {
-            return;
-          }
-
-          onClick(d, i, SelectOperation.ADD); // select current entered element
-
-          topBottom = this.updateTopBotom(i, topBottom);
-
-          // select first element, when started brushing
-          if (start.applied === false) {
-            onClick(start.d, start.i, SelectOperation.ADD);
-            start.applied = true;
-          }
-        })
-        .on('mouseup', (d, i) => {
-          if (start === null) {
-            return;
-          }
-
-          // select as click
-          if (start.applied === false) {
-            onClick(start.d, start.i, SelectOperation.ADD);
-          }
-
-          topBottom = this.updateTopBotom(i, topBottom);
-
-          fire(List.EVENT_BRUSHING, topBottom, this.data);
-
-          start = null;
-        })
-        .append('title').text(String);
+      const topBottom = [-1, -1];
+      const r = $m.enter().append('rect');
+      r.append('title').text((d) => String(d));
+      const mouseSelectionHelper = new MouseSelectionHelper(r, $g, this.data);
+      mouseSelectionHelper.installListeners(onClickAdd, onClickRemove);
       if (this.options.orientation === EOrientation.Vertical) {
         xscale.range([0, this.rawSize[0]]);
         yscale.range([0, this.rawSize[1]]);
@@ -234,14 +191,22 @@ export class BarPlot extends AVisInstance implements IVisInstance {
     return $svg;
   }
 
-  private updateTopBotom(i: number, topBottom: number[]) {
-    if (topBottom[0] > i) {
-      topBottom[0] = i;
+  private selectTopBottom(topBottom: number[], onClick) {
+    let start, end;
+    if(topBottom[0] < topBottom[1]) {
+      start = topBottom[0];
+      end = topBottom[1];
+     } else  {
+      end = topBottom[0];
+      start = topBottom[1];
     }
-    if (topBottom[1] < i) {
-      topBottom[1] = i;
+    for(let i = start; i <= end; i++) {
+      onClick('', i);
     }
-    return topBottom;
+  }
+  private updateTopBottom(top: number, bottom: number, topBottom: number[]) {
+    topBottom[0] = top;
+    topBottom[1] = bottom;
   }
 
   private drawLabels() {
@@ -279,7 +244,7 @@ export function drawLabels(size:number[], data:INumericalVector, labels: d3.Sele
   const rowHeight = size[1] / data.dim[0];
   labels.attr({
     'display': (rowHeight >= 15) ? 'inline' : 'none',
-    'font-size': (3 / 4 * rowHeight) + 'px'
+    'font-size': '14px'
   });
   data.data().then((_data) => {
     const $n = labels.selectAll('text').data(_data);
