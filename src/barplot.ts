@@ -11,9 +11,10 @@ import {INumericalVector} from 'phovea_core/src/vector';
 import {toSelectOperation} from 'phovea_core/src/idtype';
 import {Range} from 'phovea_core/src/range';
 import {SelectOperation} from 'phovea_core/src/idtype/IIDType';
-import {fire} from 'phovea_core/src/event';
-import {List} from './list';
-
+import {EOrientation} from './heatmap/internal';
+import {selectionUtil} from 'phovea_d3/src/d3util';
+import {MouseSelectionHelper} from './selection/mouseselectionhelper';
+import {isMissing} from './utils';
 
 export interface IBarPlotOptions extends IVisInstanceOptions {
   /**
@@ -43,6 +44,8 @@ export interface IBarPlotOptions extends IVisInstanceOptions {
    * @default null
    */
   heightTo?: number;
+
+  orientation?: number;
 }
 
 export class BarPlot extends AVisInstance implements IVisInstance {
@@ -98,6 +101,8 @@ export class BarPlot extends AVisInstance implements IVisInstance {
       height: height * scale[1]
     }).style('transform', 'rotate(' + rotate + 'deg)');
     this.$node.select('g').attr('transform', 'scale(' + scale[0] + ',' + scale[1] + ')');
+    const color = (this.options.rowHeight * scale[1] < 10) ? '#aaa' : 'white';
+    this.$node.selectAll('rect').style('stroke', color);
     const act = {scale, rotate};
     this.fire('transform', act, bak);
     this.options.scale = scale;
@@ -118,12 +123,10 @@ export class BarPlot extends AVisInstance implements IVisInstance {
     const $g = $svg.append('g').attr('transform', 'scale(' + this.options.scale[0] + ', ' + this.options.scale[1] + ')');
 
     //using range bands with an ordinal scale for uniform distribution
-    const xscale = this.xscale = d3.scale.linear().range([0, this.rawSize[0]]);
-    const yscale = this.yscale = d3.scale.linear().range([0, this.rawSize[1]]);
-
-    const onClick = function (d, i, selectOperation) {
-      data.select(0, [i], toSelectOperation(<MouseEvent>d3.event) || selectOperation);
-    };
+    const xscale = this.xscale = d3.scale.linear();
+    const yscale = this.yscale = d3.scale.linear();
+    const onClickAdd = selectionUtil(this.data, $g, 'rect', SelectOperation.ADD);
+    const onClickRemove = selectionUtil(this.data, $g, 'rect', SelectOperation.REMOVE);
 
     const l = function (event, type: string, selected: Range) {
       $g.selectAll('rect').classed('phovea-select-' + type, false);
@@ -151,57 +154,37 @@ export class BarPlot extends AVisInstance implements IVisInstance {
           o.max = minmax[1];
         }
       }
-      xscale.domain([o.min, o.max]);
+      xscale.domain([o.min, o.max]).clamp(true);
 
       const $m = $g.selectAll('rect').data(_data);
-      let start = null;
-      $m.enter().append('rect')
-        .on('mousedown', (d, i) => {
-          if (start !== null) {
-            return;
-          }
-
-          start = {d, i, applied: false};
-          if (toSelectOperation(<MouseEvent>d3.event) === SelectOperation.SET) {
-            fire(List.EVENT_BRUSH_CLEAR, this.data);
-            data.clear();
-          }
-        })
-        .on('mouseenter', (d, i) => {
-          if (start === null) {
-            return;
-          }
-
-          onClick(d, i, SelectOperation.ADD); // select current entered element
-
-          // select first element, when started brushing
-          if (start.applied === false) {
-            onClick(start.d, start.i, SelectOperation.ADD);
-            start.applied = true;
-          }
-        })
-        .on('mouseup', (d, i) => {
-          if (start === null) {
-            return;
-          }
-
-          // select as click
-          if (start.applied === false) {
-            onClick(start.d, start.i, SelectOperation.ADD);
-          }
-
-          fire(List.EVENT_BRUSHING, [start.i, i], this.data);
-
-          start = null;
+      const binSize = width / _data.length;
+      const topBottom = [-1, -1];
+      const r = $m.enter().append('rect');
+      r.append('title').text((d) => String(d));
+      const mouseSelectionHelper = new MouseSelectionHelper(r, $g, this.data);
+      mouseSelectionHelper.installListeners(onClickAdd, onClickRemove);
+      if (this.options.orientation === EOrientation.Vertical) {
+        xscale.range([0, this.rawSize[0]]);
+        yscale.range([0, this.rawSize[1]]);
+        $m.attr({
+          y: (d, i) => yscale(i),
+          height: yscale(1),
+          width: (d) => isMissing(d) ? 0 : xscale(d)
         });
-      $m.attr({
-        y: (d, i) => yscale(i),
-        height: (d) => yscale(1),
-        width: xscale
-      });
+        this.labels = $svg.append('g');
+        this.drawLabels();
+      } else if (this.options.orientation === EOrientation.Horizontal) {
+        xscale.range([0, this.rawSize[1]]);
+        yscale.range([0, this.rawSize[0]]);
+        $m.attr({
+          x: (d, i) => binSize * i,
+          width: (d) => binSize,
+          y: (d) => this.rawSize[1] - (isMissing(d) ? 0 : xscale(d)),
+          height: (d) => isMissing(d) ? 0 : xscale(d)
+        });
 
-      this.labels = $svg.append('g');
-      this.drawLabels();
+      }
+
       this.markReady();
       data.selections().then((selected) => l(null, 'selected', selected));
     });
@@ -209,24 +192,26 @@ export class BarPlot extends AVisInstance implements IVisInstance {
     return $svg;
   }
 
+  private selectTopBottom(topBottom: number[], onClick) {
+    let start, end;
+    if(topBottom[0] < topBottom[1]) {
+      start = topBottom[0];
+      end = topBottom[1];
+     } else  {
+      end = topBottom[0];
+      start = topBottom[1];
+    }
+    for(let i = start; i <= end; i++) {
+      onClick('', i);
+    }
+  }
+  private updateTopBottom(top: number, bottom: number, topBottom: number[]) {
+    topBottom[0] = top;
+    topBottom[1] = bottom;
+  }
+
   private drawLabels() {
-    const rowHeight = this.size[1] / this.data.dim[0];
-    this.labels.attr({
-      'display': (rowHeight >= 10) ? 'inline' : 'none',
-      'font-size': (3 / 4 * rowHeight) + 'px'
-    });
-    this.data.data().then((_data) => {
-      const $n = this.labels.selectAll('text').data(_data);
-      $n.enter().append('text');
-      const yPadding = 2;
-      const xPadding = 3;
-      $n.attr({
-        'alignment-baseline': 'central',
-        x: xPadding,
-        y: (d, i) => (i + 0.5) * rowHeight,
-        height: (d) => rowHeight - yPadding
-      }).text(String);
-    });
+    drawLabels(this.size, this.data, this.labels);
   }
 
   locateImpl(range: Range) {
@@ -248,4 +233,30 @@ export default BarPlot;
 
 export function create(data: INumericalVector, parent: Element, options?: IBarPlotOptions) {
   return new BarPlot(data, parent, options);
+}
+
+/**
+ * Draw labels for given data
+ * @param size array with [width, height]
+ * @param data loaded data set
+ * @param labels D3 Elements with all labels
+ */
+export function drawLabels(size:number[], data:INumericalVector, labels: d3.Selection<any>) {
+  const rowHeight = size[1] / data.dim[0];
+  labels.attr({
+    'display': (rowHeight >= 15) ? 'inline' : 'none',
+    'font-size': '14px'
+  });
+  data.data().then((_data) => {
+    const $n = labels.selectAll('text').data(_data);
+    $n.enter().append('text');
+    const yPadding = 2;
+    const xPadding = 3;
+    $n.attr({
+      'alignment-baseline': 'central',
+      x: xPadding,
+      y: (d, i) => (i + 0.5) * rowHeight,
+      height: (d) => rowHeight - yPadding
+    }).text(String);
+  });
 }

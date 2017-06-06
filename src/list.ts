@@ -13,7 +13,8 @@ import {rect} from 'phovea_core/src/geom';
 import {Range} from 'phovea_core/src/range';
 import {fire} from 'phovea_core/src/event';
 import {SelectOperation} from 'phovea_core/src/idtype/IIDType';
-import {toSelectOperation} from 'phovea_core/src/idtype';
+import {EOrientation} from './heatmap/internal';
+import {MouseSelectionHelper} from './selection/mouseselectionhelper';
 
 export interface IListOptions extends IVisInstanceOptions {
   /**
@@ -35,6 +36,10 @@ export interface IListOptions extends IVisInstanceOptions {
    * @default 20
    */
   rowHeight?: number;
+
+  heightTo?: number;
+
+  orientation?: number;
 }
 
 export class List extends AVisInstance implements IVisInstance {
@@ -93,8 +98,15 @@ export class List extends AVisInstance implements IVisInstance {
       return bak;
     }
     this.$node.style('transform', 'rotate(' + rotate + 'deg)');
+    this.$node.style('line-height', `${Math.round(scale[1]*100)}%`);
+    this.$node.style('font-size', `${Math.round(scale[1]*100)}%`);
     this.$node.style('width', `${scale[0] * this.options.width}px`);
-    this.$node.style('height', `${scale[1] * this.data.length * this.options.rowHeight}px`);
+    if (this.options.orientation === EOrientation.Vertical) {
+      this.$node.style('height', `${scale[1] * this.data.length * this.options.rowHeight}px`);
+    } else if (this.options.orientation === EOrientation.Horizontal) {
+
+      this.$node.style('height', `${this.options.heightTo}px`);
+    }
     const act = {scale, rotate};
     this.fire('transform', act, bak);
     this.options.scale = scale;
@@ -104,60 +116,50 @@ export class List extends AVisInstance implements IVisInstance {
 
   private build($parent: d3.Selection<any>) {
     const scale = this.options.scale;
-    const $list = $parent.append('div').attr('class', 'phovea-list ' + this.options.cssClass);
+    const $list = $parent.append('div').attr('class', 'phovea-list ' + (this.options.orientation === EOrientation.Vertical ? 'ver ' : 'hor ') + this.options.cssClass);
     $list.style('width', `${scale[0] * this.options.width}px`);
-    $list.style('height', `${scale[1] * this.data.length * this.options.rowHeight}px`);
+    $list.style('line-height', `${Math.round(scale[1]*100)}%`);
+    $list.style('font-size', `${Math.round(scale[1]*100)}%`);
+    if (this.options.orientation === EOrientation.Vertical) {
+      $list.style('height', `${scale[1] * this.data.length * this.options.rowHeight}px`);
+    } else if (this.options.orientation === EOrientation.Horizontal) {
 
-    const onClick = selectionUtil(this.data, $list, 'div', SelectOperation.ADD);
+      $list.style('height', `${this.options.heightTo}px`);
+    }
+
+    const onClickAdd = selectionUtil(this.data, $list, 'div', SelectOperation.ADD);
+    const onClickRemove = selectionUtil(this.data, $list, 'div', SelectOperation.REMOVE);
+
     this.data.data().then((arr: any[]) => {
-      let start = null;
+      const topBottom = [-1, -1];
       const $rows = $list.selectAll('div').data(arr);
-      $rows.enter().append('div')
-        .on('mousedown', (d, i) => {
-          if (start !== null) {
-            return;
-          }
+      const r = $rows.enter().append('div')
+        .attr('title', (d) => d);
+      const mouseSelectionHelper = new MouseSelectionHelper(r, $list, this.data);
+      mouseSelectionHelper.installListeners(onClickAdd, onClickRemove);
 
-          start = {d, i, applied: false};
-
-          if (toSelectOperation(<MouseEvent>d3.event) === SelectOperation.SET) {
-            fire(List.EVENT_BRUSH_CLEAR, this.data);
-            this.data.clear();
-          }
-        })
-        .on('mouseenter', (d, i) => {
-          if (start === null) {
-            return;
-          }
-
-          onClick(d, i); // select current entered element
-
-          // select first element, when started brushing
-          if (start.applied === false) {
-            onClick(start.d, start.i);
-            start.applied = true;
-          }
-        })
-        .on('mouseup', (d, i) => {
-          if (start === null) {
-            return;
-          }
-
-          // select as click
-          if (start.applied === false) {
-            onClick(start.d, start.i);
-          }
-
-          fire(List.EVENT_BRUSHING, [start.i, i], this.data);
-
-          start = null;
-        });
       const formatter = this.options.format ? format(this.options.format) : String;
       $rows.text(formatter);
       $rows.exit().remove();
       this.markReady();
     });
     return $list;
+  }
+
+  private selectTopBottom(topBottom: number[], onClick) {
+    let tmp;
+    if(topBottom[0] > topBottom[1]) {
+      tmp = topBottom[0];
+      topBottom[0] = topBottom[1];
+      topBottom[1] = tmp;
+    }
+    for(let i = topBottom[0]; i <= topBottom[1]; i++) {
+      onClick('', i);
+    }
+  }
+  private updateTopBottom(top: number, bottom: number, topBottom: number[]) {
+    topBottom[0] = top;
+    topBottom[1] = bottom;
   }
 
 }
@@ -167,3 +169,4 @@ export default List;
 export function create(data: IAnyVector, parent: HTMLElement, options: IListOptions) {
   return new List(data, parent, options);
 }
+

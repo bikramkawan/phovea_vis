@@ -10,11 +10,10 @@ import {rect} from 'phovea_core/src/geom';
 import {mixin} from 'phovea_core/src';
 import {selectionUtil} from 'phovea_d3/src/d3util';
 import {INumericalVector, ICategoricalVector} from 'phovea_core/src/vector';
-import {defaultColor, defaultDomain, toScale, IScale, ICommonHeatMapOptions} from './internal';
+import {defaultColor, defaultDomain, toScale, IScale, ICommonHeatMapOptions, isMissing, EOrientation} from './internal';
 import {SelectOperation} from 'phovea_core/src/idtype/IIDType';
-import {fire} from 'phovea_core/src/event';
-import List from '../list';
-import {toSelectOperation} from 'phovea_core/src/idtype';
+import {drawLabels} from '../barplot';
+import {MouseSelectionHelper} from '../selection/mouseselectionhelper';
 
 export interface IHeatMap1DOptions extends ICommonHeatMapOptions {
   /**
@@ -27,11 +26,15 @@ export interface IHeatMap1DOptions extends ICommonHeatMapOptions {
    * @default null
    */
   heightTo?: number;
+
+  orientation?: number;
 }
+
 
 export declare type IHeatMapAbleVector = INumericalVector|ICategoricalVector;
 
 export default class HeatMap1D extends AVisInstance implements IVisInstance {
+
   private readonly $node: d3.Selection<any>;
   private labels: d3.Selection<any>;
   private readonly colorer: IScale;
@@ -39,13 +42,15 @@ export default class HeatMap1D extends AVisInstance implements IVisInstance {
   private readonly options: IHeatMap1DOptions = {
     width: 20,
     scale: [1, 1],
-    rotate: 0
+    rotate: 0,
+    missingColor: '#d400c2'
   };
 
   constructor(public readonly data: IHeatMapAbleVector, public parent: Element, options: IHeatMap1DOptions = {}) {
     super();
     const value = this.data.valuetype;
     this.options.heightTo = data.dim[0];
+    this.options.orientation = options.orientation;
     mixin(this.options, {
       color: defaultColor(value),
       domain: defaultDomain(value)
@@ -112,6 +117,8 @@ export default class HeatMap1D extends AVisInstance implements IVisInstance {
       height: height * scale[1]
     }).style('transform', 'rotate(' + rotate + 'deg)');
     this.$node.select('g').attr('transform', 'scale(' + scale[0] + ',' + scale[1] + ')');
+    const strokeWidth = (height * scale[1] / this.data.dim[0] < 10) ? '0' : '0.1';
+    this.$node.selectAll('rect').style('stroke-width', strokeWidth);
     const act = {scale, rotate};
     this.fire('transform', act, bak);
     this.options.scale = scale;
@@ -123,7 +130,7 @@ export default class HeatMap1D extends AVisInstance implements IVisInstance {
   private recolor() {
     const c = this.colorer;
     c.domain(this.options.domain).range(this.options.color);
-    this.$node.selectAll('rect').attr('fill', (d) => c(d));
+    this.$node.selectAll('rect').attr('fill', (d) => isMissing(d) ? this.options.missingColor : c(d));
   }
 
   private build($parent: d3.Selection<any>) {
@@ -136,88 +143,46 @@ export default class HeatMap1D extends AVisInstance implements IVisInstance {
     const $g = $svg.append('g').attr('transform', 'scale(1,' + this.options.scale[1] + ')');
 
     const c = this.colorer;
-
     const t = <Promise<string|number[]>>this.data.data();
     t.then((arr: any[]) => {
-      let start = null;
+
+      const binSize = width / arr.length;
       const $rows = $g.selectAll('rect').data(arr);
-      const onClick = selectionUtil(this.data, $g, 'rect', SelectOperation.ADD);
-      $rows.enter().append('rect')
-        .on('mousedown', (d, i) => {
-          if (start !== null) {
-            return;
-          }
-
-          start = {d, i, applied: false};
-
-          if (toSelectOperation(<MouseEvent>d3.event) === SelectOperation.SET) {
-            fire(List.EVENT_BRUSH_CLEAR, this.data);
-           this.data.clear();
-          }
-        })
-        .on('mouseenter', (d, i) => {
-          if (start === null) {
-            return;
-          }
-
-          onClick(d, i); // select current entered element
-
-          // select first element, when started brushing
-          if (start.applied === false) {
-            onClick(start.d, start.i);
-            start.applied = true;
-          }
-        })
-        .on('mouseup', (d, i) => {
-          if (start === null) {
-            return;
-          }
-
-          // select as click
-          if (start.applied === false) {
-            onClick(start.d, start.i);
-          }
-
-          fire(List.EVENT_BRUSHING, [start.i, i], this.data);
-
-          start = null;
-        })
-        .attr({
+      const onClickAdd = selectionUtil(this.data, $g, 'rect', SelectOperation.ADD);
+      const onClickRemove = selectionUtil(this.data, $g, 'rect', SelectOperation.REMOVE);
+      const r = $rows.enter().append('rect');
+      r.append('title').text((d) => String(d));
+      const mouseSelectionHelper = new MouseSelectionHelper(r, $g, this.data);
+      mouseSelectionHelper.installListeners(onClickAdd, onClickRemove);
+      $rows.attr({
+        fill: (d) => c(d)
+      });
+      if (this.options.orientation === EOrientation.Vertical) {
+        $rows.attr({
+          y: (d, i) => i,
           width: this.options.width,
           height: 1
-        }).append('title').text(String);
-      $rows.attr({
-        fill: (d) => c(d),
-        y: (d, i) => i
-      });
+        });
+        this.labels = $svg.append('g');
+        this.drawLabels();
+      } else if (this.options.orientation === EOrientation.Horizontal) {
+        $rows.attr({
+          fill: (d) => isMissing(d) ? this.options.missingColor : c(d),
+          x: (d, i) => i * binSize,
+          //y: (d, i) => i,
+          width: binSize,
+          height: this.options.heightTo
+        });
+      }
       $rows.exit().remove();
-
-      this.labels = $svg.append('g');
-      this.drawLabels();
       this.markReady();
     });
     return $svg;
   }
 
+
   private drawLabels() {
-    const rowHeight = this.size[1] / this.data.dim[0];
-    this.labels.attr({
-      'display': (rowHeight >= 10) ? 'inline' : 'none',
-      'font-size': (3 / 4 * rowHeight) + 'px'
-    });
-    const t = <Promise<string|number[]>>this.data.data();
-    t.then((arr: any[]) => {
-      const $n = this.labels.selectAll('text').data(arr);
-      $n.enter().append('text');
-      const yPadding = 2;
-      const xPadding = 3;
-      $n.attr({
-        'alignment-baseline': 'central',
-        x: xPadding,
-        y: (d, i) => (i + 0.5) * rowHeight,
-        height: (d) => rowHeight - yPadding
-      }).text(String);
-    });
+    drawLabels(this.size, <INumericalVector>this.data, this.labels);
   }
 }
 

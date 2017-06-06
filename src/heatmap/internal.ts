@@ -8,6 +8,12 @@ import {
   ICategoricalValueTypeDesc, ICategory
 } from 'phovea_core/src/datatype';
 import {IVisInstanceOptions} from 'phovea_core/src/vis';
+export {isMissing} from '../utils';
+
+export enum EOrientation {
+  Vertical,
+  Horizontal
+}
 
 
 export function defaultColor(value: INumberValueTypeDesc|ICategoricalValueTypeDesc): string[] {
@@ -65,4 +71,10 @@ export interface ICommonHeatMapOptions extends IVisInstanceOptions {
    * @default derived from value
    */
   domain?: (number|string)[];
+
+  /**
+   * missing value color
+   * @default magenta
+   */
+  missingColor?: string;
 }
